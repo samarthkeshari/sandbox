@@ -1,0 +1,411 @@
+---
+title: "Exploring College Data Set"
+author: "Almaden Data Science"
+date: "February 26, 2016"
+output: html_document
+---
+*****  
+```{r echo=FALSE}
+library(DT)
+library(moments)
+library(nortest)
+```
+
+```{r echo=FALSE}
+#stringAsFactors = TRUE, convert character vector to factors
+#factors -categorical variables. In College dataset, 1st column (name) and 'private' are a factor variable.  
+college = read.csv("college.csv",header=TRUE, sep=",", stringsAsFactors = TRUE)
+```
+
+##Introduction
+We explore the college data set in order to develop an intuitive understanding of the underlying data. We have intentionally selected a data set with a smaller dimension (777 x 19) and one which does not require pre-processing.  This allows us to solely focus on the exploratory aspects of the analysis.
+
+Our approach is to:  
+
+>
+- Define a problem statement to provide a context in which to perform the analysis.  
+- Specify the problem type: prediction, classification etc.  
+- Define the independent variable.  
+- Visualize the data and draw any inferences.    
+- Study the correlations within the data set.    
+  
+
+##Problem Definition
+Graduation rate is a critical metric for any college.  We treat is as the dependent variable with remaining columns serving as independent variables. The overall problem can then be thought of as developing a model that predicts graduation rate.  
+
+Given this, lets focus on developing an understanding of Graduation Rate through Exploratory Analysis. 
+
+##Visualizing Graduation Rates
+###Scatter Plot
+We begin by looking at the scatter plot of graduation rate.  
+```{r}
+plot(1:777,college$Grad.Rate, xlab='Colleges', ylab='Graduation Rate', main = 'Graduation Rates Scatter')
+```
+
+We note the following:  
+>  
+- Dark circles indicate multiple data points with same value
+- Low graduation rates for some colleges.
+
+###Histogram
+Next, we plot the histogram of the graduation rates, we find that the graduation rates are **seemingly** normally distributed.   
+
+```{r}
+hist(college$Grad.Rate, probability = FALSE, main='Graduation Rates')
+```
+
+The y axis provides a count of the colleges with corresponding grad.rate value on the x axis.
+
+We can also plot probabilities instead of count on the y axis as shown below.
+
+```{r}
+hist(college$Grad.Rate, probability = TRUE, xlab = 'Graduation Rates', ylab = 'probability', main='Graduation Rates')
+```
+
+Next, we overlay a normal curve with mean and standard deviation derived of grad.rate column.
+
+```{r}
+hist(college$Grad.Rate, probability = TRUE, xlab = 'Graduation Rate', ylab = 'probability', main= 'Graduation Rates')
+curve(dnorm(x, mean=mean(college$Grad.Rate), sd=sd(college$Grad.Rate)), add=TRUE, colors=c("blue"))
+
+lines (density(college$Grad.Rate), colors=c("red"))
+
+```
+
+The resulting figure shows that normal distribution is a pretty good approximation of the (overlaid) normal curve.  
+
+******
+##About Normality
+A more rigourous approach for proving normality of a population from sample data is discussed in [1].
+The paper describes the following steps:
+
+>
+1. Visualization of Data using histogram (as above) and Q-Q plot 
+2. Skeweness and Kurtosis
+3. Formal Tests for Normality
+    a. Anderson-Darling,
+    b. Shapiro-Wilk, and
+    c. Lilliefors test
+
+In addition, a rule of thumb, "**68-95-99.7**" is also used to check the percent of data points from the provided sample that lie within specified standard deviations as shown below. 
+mean and sd are derived from the sample. 
+
+```{r echo=FALSE}
+Standard_Deviation = c("1 sd", "2 sd", "3 sd")
+Deviation_from_Mean = c("mean +/- sd", "mean +/- 2*sd", "mean +/- 3*sd")
+Percentages = c(68, 95, 99.7)
+rule.df = data.frame(cbind(Standard_Deviation,Deviation_from_Mean,Percentages))
+datatable(rule.df, rownames = FALSE, list(pagelength=1, dom="t"))
+```
+  
+We note that R and Python make it easy to perform the above steps.  However, it is critical to understand the underlying intuition at the very least.  Numeroud resources are available online.  For a basic explanation, please refer to the Appendix.  
+
+With the understanding, let us discuss the remaining steps starting with Q-Q plot.
+
+###Q-Q plot
+QQNorm gives a Q-Q plot in R.  The resulting plot below, indicates deviations from straight line at the extremes. The deviation require further investigation.   
+
+>  
+- Is the deviation resulting from outliers in the data,  
+- What is the reason for outliers,  
+- Can outliers be eliminated, or  
+- Is the underlying distribution really non normal.  If so, what are the next steps?  
+
+```{r}
+qqnorm(college$Grad.Rate)
+qqline(college$Grad.Rate)
+```
+
+##Skewness 
+Skewness is a measure of "asymmetry".
+
+```{r}
+skewness(college$Grad.Rate)
+```
+
+Let us empirically compare the skew of College data set derived above (-0.1135575) with skewness of multiple N(0,1) random samples. We notice, the skew for N(0,1) samples is close to 0. 
+
+```{r}
+skew = c()
+
+for (i in 1:5){
+  s = skewness(rnorm(100000,0,1))
+  skew = append(s, skew)
+}
+
+skew
+```
+
+##Kurtosis
+Kurtosis measures the "pointedness" of the distribution. 
+
+```{r}
+kurtosis(college$Grad.Rate)
+```
+
+As above, again compare the sample Kurtosis with Kurtosis of samples drawn from N(0,1).  For normal distribution is close to 3 as shown below.  
+
+
+```{r}
+kurtosis = c()
+
+for (i in 1:5){
+  k = kurtosis(rnorm(100000,0,1))
+  kurtosis = append(k, kurtosis)
+}
+
+kurtosis
+  
+```
+
+
+##Formal tests for Normality
+
+Null Hypothesis (Ho): The data set is from as normally distributed population.  
+Aletrnate Hynpothesis (Ha): The data set is NOT generated from a normall distributed set.  
+
+###Shapiro
+```{r}
+shapiro = shapiro.test(college$Grad.Rate)
+shapiro
+```
+
+
+###Anderson Darling
+```{r}
+anderson.darling = ad.test(college$Grad.Rate)
+anderson.darling[2]
+```
+
+
+###Lilliefors
+```{r}
+lillie = lillie.test(college$Grad.Rate)
+```
+
+The table below summarizes the comparison of p-value for the three tests. The result is fairly interesting since Shapiro test based on p-value < 0.05 (significance level) indicates that the null hypothesis cannot be accepted.
+
+```{r echo=FALSE}
+
+results = rbind(c("Shapiro", shapiro[2], "Yes"), c("Anderson Darling", anderson.darling[2], "No"), c("Lilliefors", lillie[2], "No"))
+
+datatable(results, rownames = FALSE, colnames = c("Test", "p-value", "Reject Ho at alpha=0.05"), list(pagelength=1, dom="t"))
+
+```
+
+******
+The normality of graduation rates, allows us to make inferences about 
+
+a. probability of colleges with grad.rate between certain values, i.e., p(a < grad.rate < b), and 
+b. distribution of differences in grad.rates between Private and Public colleges or other **factor** variables.    
+
+##Inference (a) - Cumulative Density Function
+
+R gives us function **pnorm** for computing the probability of grad.rate being less than a specified value.  For example, P(60 < X < 70), where X is the grad.rate.
+
+```{r}
+range = c(60,70)
+p = pnorm(range, mean=mean(college$Grad.Rate), sd =sd(college$Grad.Rate))
+p
+```
+
+For better interpretation, we can convert derived probability to count as shown below,
+
+```{r}
+totalCount = sum(college$Grad.Rate)
+totalCount
+count.1 = (p[[1]] * totalCount)/100
+count.1
+```
+
+```{r}
+count.2 = (p[[2]] * totalCount)/100
+count.2
+```
+
+Number of colleges between the 
+```{r}
+  count = count.2 - count.1
+  count
+```
+
+**Interpretation**  
+
+p[[1]] - probability of grad.rate being less than 60
+p[[2]] - probability of grad.rate being less than 70
+
+We first convert these probabilities to count,where count is the number of college with grad.rate being less than 60 and 7- respectively.
+
+Taking the different, we get the count of colleges between 60 and 709.
+
+Note: We note that, as grad.rate is a continuous variable probability of grade.rate being equal to specific value is typically considered to be zero.   In case of continuous random variables, less than, or greater than, or between is more appropriate. 
+
+##Inference (b) - Distribution of differences in Graduation Rates between Private and Public colleges
+TBD
+
+
+*****
+##Graduation Rates for Private/Public colleges
+A box plot of graduation rates segregated by private and public or non-private colleges indicates that  
+>
+a. median graduation rates are higher for Private colleges,
+b. there are under-performing private schools,
+c. there are over-performing public schools  
+  
+
+```{r}
+boxplot(Grad.Rate~Private,data=college)
+```
+
+
+##Underperforming Schools
+```{r}
+college.private = data.frame(subset(college, college$Private == 'Yes'))
+college.private.u = data.frame(subset(college.private, college.private$Grad.Rate < 25))
+datatable(college.private.u, rownames = FALSE, list(pagelength=1))
+```
+
+##Overperforming Schools
+```{r}
+college.public = data.frame(subset(college, college$Private == 'No'))
+college.public.u = data.frame(subset(college, college.public$Grad.Rate < 20))
+datatable(college.public.u, rownames = FALSE, list(pagelength=1))
+```
+
+*****
+
+##Correlation of Graduation Rates versus other columns  
+
+```{r}
+college.cor = college[,3:19]
+cor.df =  cor(college.cor)
+```
+
+Correlation (r) of grad.rates with other numeric columns in the first column of data set shown below.  The second column shows the r^2.  The sign associated with r gives the true direction of the linear relationship and r^2 gives the strength of the relationship.
+
+*****
+> It is interesting to note  
+a. grad.rates does not have a strong positive correlation with any of the other variables,  
+b. negative correlation with undergrad columns but a small positive correlation with PhD,  
+c. negative correlation with S.F.Ratio seems to in agreement with above observation as well.  
+
+
+```{r echo = FALSE}
+cor.test    = data.frame()
+```
+
+
+```{r echo=FALSE}
+cor.test[1,1] = cor.test(college$Apps,college$Grad.Rate)[[3]]
+cor.test[2,1] = cor.test(college$Accept,college$Grad.Rate)[[3]]
+cor.test[3,1] = cor.test(college$Enroll,college$Grad.Rate)[[3]]
+cor.test[4,1] = cor.test(college$Top10perc,college$Grad.Rate)[[3]]
+cor.test[5,1] = cor.test(college$Top25perc,college$Grad.Rate)[[3]]
+cor.test[6,1] = cor.test(college$F.Undergrad,college$Grad.Rate)[[3]]
+cor.test[7,1] = cor.test(college$P.Undergrad,college$Grad.Rate)[[3]]
+cor.test[8,1] = cor.test(college$Outstate,college$Grad.Rate)[[3]]
+cor.test[9,1] = cor.test(college$Room.Board,college$Grad.Rate)[[3]]
+cor.test[10,1] = cor.test(college$Books,college$Grad.Rate)[[3]]
+cor.test[11,1] = cor.test(college$Personal,college$Grad.Rate)[[3]]
+cor.test[12,1] = cor.test(college$PhD,college$Grad.Rate)[[3]]
+cor.test[13,1] = cor.test(college$Terminal,college$Grad.Rate)[[3]]
+cor.test[14,1] = cor.test(college$S.F.Ratio,college$Grad.Rate)[[3]]
+cor.test[15,1] = cor.test(college$perc.alumni,college$Grad.Rate)[[3]]
+cor.test[16,1] = cor.test(college$Expend,college$Grad.Rate)[[3]]
+
+```
+
+
+```{r}
+show.cor = cbind(cor.df[1:16, 17], cor.df[1:16, 17]^2, cor.test[1:15,1])
+colnames(show.cor) = c("Correlation (r)", "r^2", "p Value")
+show.cor
+```
+
+Based on a significance level of 0.05 and p values in last column of above table, we can deduce that columns Accept, Enroll and Books will likely not be in a model with Grad.Rate as an independent (y) value.
+
+Lets do a quick regression model between Grad.Rate as independent and remaining variables as dependent variables.  As expected the variables, Accept, Enroll, and Books have close to zero coefficients in the resulting regression model. We use this just for validation= purposes.
+
+```{r}
+reg.college = college[,-(1:2),drop=FALSE]
+reg.model = lm(Grad.Rate~., data=reg.college)
+reg.model
+
+```
+
+
+##Visualizing Correlations
+Let us plot grad.rate with an arbitrary selected positively and a negatively correlated column to demonstrate the relationship.  Also, just to further contrast the trend, we fit a regression line through the scatter plots.
+
+For regression, it is recommended to normalize the data. So lets first scale the data.      
+
+```{r}
+college.scaled = data.frame(scale(college.cor))
+```
+
+Next, we fit the regression lines through the 2 scatters.  
+```{r}
+
+plot(college.scaled$Grad.Rate, college.scaled$PhD, xlab='Graduation Rates', ylab = 'PhD', main = 'Graduation Rate vs PhD')
+abline(lm(Grad.Rate~PhD,data=college.scaled))
+
+plot(college.scaled$Grad.Rate,college.scaled$P.Undergrad, xlab='Graduation Rates', ylab = 'P.Undergrad', main = 'Graduation Rate vs P.Undergrad')
+abline(lm(Grad.Rate~P.Undergrad,data=college.scaled))
+
+```
+
+
+******
+###References  
+[1] "Is My Data Normally Distributed", Allison Horst, UC Santa Barbara, https://statsthewayilikeit.files.wordpress.com/2014/07/tests-for-normality.pdf
+
+
+******
+##Appendix: 
+
+###Q-Q Plot
+Q stands for quantiles (or percentiles).  
+
+Quantiles represent the percentage of data points in a frequency distribution that are less than or equal to a given value.  
+
+The intention here is to compare the quantile of the given data set against the quantiles of a theoretical normal distribution.  
+
+If quantiles from the 2 distributions, i.e., given data set and theoretical normal distribution are *exactly* same then Q-Q plot results in a straight line.  This indicates that the given data likely follows a normal distribution.
+
+******
+
+###p-Value in short 
+
+Given a random sample with mean "x bar".   
+
+We want to determine if the sample comes from a population with population mean
+
+  **H0:** = "mu", or  
+  **Ha:** > "mu"  
+  
+"mu" can be any number.  
+
+**Assume:**  
+- Population sd = "sigma".    
+- "alpha"" = given level of significance based on which we will reject or not reject H0.
+
+**Process:**  
+To test the H0 versus Ha,  
+- Assume H0 is true.  
+- Normalize the sample mean, "x bar". Call it "z bar"   
+- Then, compute p-value = P("z" > "normalized mu") using standard normal tables.
+
+If:     p-value > alpha, Accept H0 
+Else:   Cannot accept H0.
+
+**Note:** p value provides a "probability of the sample coming from the population as specified in the null hypothesis".  A low probability value rejects the null hypothesis; if so this means that we cannot conclude that the population comes from a normal distribution.
+
+******
+
+###Confidence Interval
+
+With a level of confidence (C), we can say that  
+
+>  
+- a population parameter (say, population mean mu) lies within the given confidence interval (CI).    
+-  The confidence interval being derivded from a random sample of the popultion.
