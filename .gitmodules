@@ -1,0 +1,3 @@
+[submodule "Samarth"]
+	path = Samarth
+	url = git@mygithost:Samarth
